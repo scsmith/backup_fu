@@ -1,15 +1,24 @@
 require 'yaml'
 require 'active_support'
 require 'mime/types'
-require 'right_aws'
 require 'erb'
+# see which store manages to load
+begin
+  require 'backup_fu_stores/right_aws_store'
+rescue LoadError
+  puts "cannot load right_aws will try aws/s3"
+end
+begin
+  require 'backup_fu_stores/aws_s3_store'
+rescue LoadError
+  puts "cannot load aws/s3"
+end
 
 class BackupFuConfigError < StandardError; end
 class S3ConnectError < StandardError; end
 
-class BackupFu
-  
-  def initialize
+class BackupFu  
+  def initialize    
     db_conf = YAML.load_file(File.join(RAILS_ROOT, 'config', 'database.yml')) 
     @db_conf = db_conf[RAILS_ENV].symbolize_keys
     
@@ -31,6 +40,9 @@ class BackupFu
     @fu_conf[:keep_backups] ||= 5
     check_conf
     create_dirs
+    
+    # if the backup rightaws store is defined then use that else use the other
+    @store = BackupFuStores.const_defined?('RightAwsStore') ? BackupFuStores::RightAwsStore.new(@fu_conf) : BackupFuStores::AwsS3Store.new(@fu_conf)
   end
   
   def sqlcmd_options
@@ -88,7 +100,7 @@ class BackupFu
   end
   
   def list_backups
-    s3_connection.bucket(@fu_conf[:s3_bucket]).keys.map(&:to_s)
+    @store.list_backups
   end
 
   # Don't count on being able to drop the database, but do expect to drop all tables
@@ -189,25 +201,8 @@ class BackupFu
   
   private
   
-  def s3
-    @s3 ||= RightAws::S3.new(@fu_conf[:aws_access_key_id],
-                             @fu_conf[:aws_secret_access_key])
-  end
-  
-  def s3_bucket
-    @s3_bucket ||= s3.bucket(@fu_conf[:s3_bucket], true, 'private')
-  end
-  
   def store_file(file)
-    key = s3_bucket.key(File.basename(file))
-    key.data = open(file)
-    key.put(nil, 'private')
-  end
-  
-  def s3_connection
-    @s3 ||= begin
-      RightAws::S3.new(@fu_conf[:aws_access_key_id], @fu_conf[:aws_secret_access_key])
-    end
+    @store.store_file(file)
   end
 
   def check_conf
