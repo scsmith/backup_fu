@@ -18,11 +18,13 @@ class BackupFu
     fu_conf    = YAML.load(erb_config)
     @fu_conf   = fu_conf[RAILS_ENV].symbolize_keys
     
-    @s3_conf = YAML.load_file(File.join(RAILS_ROOT, 'config', 'amazon_s3.yml'))[RAILS_ENV].symbolize_keys
-    @fu_conf[:s3_bucket] ||= @s3_conf[:bucket_name]
-    @fu_conf[:aws_access_key_id] ||= @s3_conf[:access_key_id]
-    @fu_conf[:aws_secret_access_key] ||= @s3_conf[:secret_access_key]
-
+    s3_conf_path = File.join(RAILS_ROOT, 'config', 'amazon_s3.yml')
+    @s3_conf = YAML.load_file(s3_conf_path)[RAILS_ENV].symbolize_keys if File.exists?(s3_conf_path)
+    if @s3_conf
+      @fu_conf[:s3_bucket] ||= @s3_conf[:bucket_name]
+      @fu_conf[:aws_access_key_id] ||= @s3_conf[:access_key_id]
+      @fu_conf[:aws_secret_access_key] ||= @s3_conf[:secret_access_key]
+    end
     @fu_conf[:mysqldump_options] ||= '--complete-insert --skip-extended-insert'
     @verbose = !@fu_conf[:verbose].nil?
     @timestamp = datetime_formatted
