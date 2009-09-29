@@ -44,8 +44,8 @@ class BackupFu
       port = "--port=#{@db_conf[:port]}"
     end
 
-    unless @db_conf[:username].blank?
-      user = "--user=#{@db_conf[:username]}"
+    unless @db_conf[:username].blank? && @db_conf[:user].blank?
+      user = "--user=#{@db_conf[:username] || @db_conf[:user]}"
     end
 
     if !@db_conf[:password].blank? && @db_conf[:adapter] != 'postgresql'
